@@ -21,8 +21,8 @@ final class Game {
 	private(set) var centerChipCount: Int = 0
 	/// If the game is over, this field contains the winner
 	private(set) var winner: Player?
-	/// The index of the player that is currently rolling for the win, if there is one
-	private var playerRollingForWinIndex: Int?
+	/// Whether the current player is rolling for the win
+	private(set) var isCurrentPlayerRollingForWin: Bool = false
 
 	/// The game is over if `winner` is not nil
 	var isGameOver: Bool {
@@ -35,14 +35,9 @@ final class Game {
 		return players[playerIndex]
 	}
 
-	/// The player that is currently rolling for the win, if there is one
-	var playerRollingForWin: Player? {
-		playerRollingForWinIndex.map { players[$0] }
-	}
-
-	init(players: [Player], initialChipCount: Int = 3) {
-		assert(!players.isEmpty, "Players must not be empty")
-		self.players = players
+	init(playerNames: [String], initialChipCount: Int = 3) {
+		assert(playerNames.count > 1, "Must be at least two players")
+		self.players = playerNames.map { Player(name: $0, chips: initialChipCount) }
 		self.initialChipCount = initialChipCount
 	}
 
@@ -85,19 +80,21 @@ final class Game {
 		}
 
 		// Check if we have a winner
-		if let playerRollingForWin = playerRollingForWin {
+		if isCurrentPlayerRollingForWin {
 			// If a player is rolling for the win and all of their rolls are either "keep"
 			// or "center" (meaning none are "left" or "right"), then that player wins.
 			let didWin = rolls.allSatisfy { $0 == .keep || $0 == .center }
 			if didWin {
-				winner = playerRollingForWin
+				winner = players[currentPlayerIndex]
 			}
 		}
 
-		// If only one player has chips left, that player will roll for the win on the next turn
-		playerRollingForWinIndex = indexOfLastPlayerWithChips()
 		if isGameOver == false {
 			advanceUntilNextPlayerWithChips()
+
+			// Determine if the next player is rolling for the win
+			let lastPlayerIndex = indexOfLastPlayerWithChips()
+			isCurrentPlayerRollingForWin = lastPlayerIndex != nil
 		}
 
 		return TurnResult(
@@ -111,7 +108,7 @@ final class Game {
 
 	/// Advance the `currentTurnIndex` until we find a player that still has chips
 	private func advanceUntilNextPlayerWithChips() {
-		for offset in players.indices {
+		for offset in (1..<players.count) {
 			let playerIndex = (currentTurnIndex + offset) % players.count
 			let player = players[playerIndex]
 			if player.chips > 0 {
